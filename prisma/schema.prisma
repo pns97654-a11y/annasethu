@@ -1,0 +1,410 @@
+// Annasethu — Food Rescue & Donation Platform
+// Local dev uses SQLite for zero-config setup. For production, change
+// `provider` below to "postgresql" and point DATABASE_URL at your instance.
+// The models below are written to be Postgres-compatible (enums are simulated
+// as Strings with app-level validation so SQLite can be used in dev without
+// a schema fork; swap the String status fields for real `enum` blocks when
+// you move to Postgres, or keep them as strings — both work fine on PG).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// CORE IDENTITY
+// ---------------------------------------------------------------------------
+
+// One row per human account. Role-specific data lives in the linked profile
+// tables below. A user has exactly one role for simplicity in the MVP.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  phone        String?
+  passwordHash String
+  role         String   // "DONOR" | "ORGANIZATION" | "DELIVERY_PARTNER" | "SPONSOR" | "ADMIN"
+  fullName     String
+  isActive     Boolean  @default(true) // admin can suspend
+  isVerified   Boolean  @default(false) // email/phone verification
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  donorProfile            DonorProfile?
+  organizationProfile     OrganizationProfile?
+  deliveryPartnerProfile  DeliveryPartnerProfile?
+  sponsorProfile          SponsorProfile?
+
+  notifications  Notification[]
+  reportsFiled   Report[]        @relation("ReportedBy")
+  ratingsGiven   Rating[]        @relation("RatingsGiven")
+  auditLogs      AuditLog[]
+
+  @@index([role])
+}
+
+// ---------------------------------------------------------------------------
+// DONOR
+// ---------------------------------------------------------------------------
+
+model DonorProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+  donorType     String   // "INDIVIDUAL" | "RESTAURANT" | "HOTEL" | "BAKERY" | "CATERER" |
+                          // "CORPORATE_CAFETERIA" | "COLLEGE_HOSTEL" | "EVENT_ORGANIZER" | "OTHER"
+  businessName  String?
+  isRecurring   Boolean  @default(false) // Phase 3: recurring donor workflow
+  createdAt     DateTime @default(now())
+
+  donations Donation[]
+}
+
+// ---------------------------------------------------------------------------
+// ORGANIZATIONS (recipients) — must be admin-verified before requesting food
+// ---------------------------------------------------------------------------
+
+model OrganizationProfile {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id])
+  organizationName      String
+  organizationType      String   // "ORPHANAGE" | "OLD_AGE_HOME" | "SHELTER" | "NGO" |
+                                   // "COMMUNITY_KITCHEN" | "DISASTER_RELIEF" | "OTHER"
+  contactPersonName     String
+  contactPhone          String
+  addressId             String
+  address               Address  @relation(fields: [addressId], references: [id])
+  peopleServed          Int
+  typicalMealsRequired  Int
+  operatingHours        String?  // free text, e.g. "8 AM - 8 PM"
+  serviceAreaId         String?
+  serviceArea           ServiceArea? @relation(fields: [serviceAreaId], references: [id])
+
+  verificationStatus    String   @default("PENDING") // "PENDING" | "VERIFIED" | "REJECTED"
+  verifiedAt            DateTime?
+  verifiedByUserId      String?
+  rejectionReason       String?
+
+  createdAt             DateTime @default(now())
+
+  documents        OrganizationDocument[]
+  donationRequests DonationRequest[]
+  deliveries       Delivery[] @relation("RecipientOrg")
+
+  @@index([verificationStatus])
+}
+
+model OrganizationDocument {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   OrganizationProfile @relation(fields: [organizationId], references: [id])
+  docType        String   // "REGISTRATION_CERTIFICATE" | "TAX_EXEMPTION" | "ID_PROOF" | "OTHER"
+  fileUrl        String
+  uploadedAt     DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// DELIVERY PARTNERS
+// ---------------------------------------------------------------------------
+
+model DeliveryPartnerProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id])
+  vehicleType         String   // "BIKE" | "SCOOTER" | "CAR" | "VAN" | "BICYCLE" | "ON_FOOT"
+  serviceAreaId       String?
+  serviceArea         ServiceArea? @relation(fields: [serviceAreaId], references: [id])
+  identityDocUrl      String?
+  isAvailable         Boolean  @default(true)
+  verificationStatus  String   @default("PENDING") // "PENDING" | "VERIFIED" | "REJECTED"
+  payoutDetails       String?  // last 4 digits / masked reference only — never store full bank data unencrypted
+  agreedToTerms       Boolean  @default(false)
+  ratingAverage        Float?
+  completedDeliveries  Int      @default(0)
+  createdAt            DateTime @default(now())
+
+  deliveries Delivery[]
+}
+
+// ---------------------------------------------------------------------------
+// SPONSORS
+// ---------------------------------------------------------------------------
+
+model SponsorProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+  sponsorType   String   // "COMPANY" | "FOUNDATION" | "INDIVIDUAL" | "CSR_PROGRAM" | "PHILANTHROPIC_ORG"
+  displayName   String
+  createdAt     DateTime @default(now())
+
+  sponsorships Sponsorship[]
+}
+
+// A pledge/contribution record. No real money moves in the MVP — this is
+// deliberately architected so a real payment provider (Stripe/Razorpay) can
+// write Transaction rows via a provider adapter later. Never fabricate rows here.
+model Sponsorship {
+  id          String   @id @default(cuid())
+  sponsorId   String
+  sponsor     SponsorProfile @relation(fields: [sponsorId], references: [id])
+  amountCents Int
+  currency    String   @default("INR")
+  purpose     String   // "DELIVERY_COMPENSATION" | "LOGISTICS" | "PLATFORM_OPERATIONS" | "GENERAL"
+  status      String   @default("PENDING") // "PENDING" | "COMPLETED" | "FAILED" — set by real payment webhook
+  createdAt   DateTime @default(now())
+
+  transactions Transaction[]
+}
+
+model Transaction {
+  id             String   @id @default(cuid())
+  sponsorshipId  String
+  sponsorship    Sponsorship @relation(fields: [sponsorshipId], references: [id])
+  provider       String   // "stripe" | "razorpay" | ... — set when a real provider is wired up
+  providerRef    String?  // external charge/payment id
+  amountCents    Int
+  currency       String   @default("INR")
+  status         String   // "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED"
+  createdAt      DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// LOCATION
+// ---------------------------------------------------------------------------
+
+// Exact coordinates/address text live here. Access to the precise `line1`
+// field is gated in application code (see lib/access-control.ts) — public
+// donation listings must only ever surface `approxAreaLabel` + `city`,
+// never this table's exact fields, except to an assigned delivery partner
+// or the address owner.
+model Address {
+  id               String   @id @default(cuid())
+  line1            String   // exact address — sensitive
+  line2            String?
+  city             String
+  state            String?
+  postalCode       String?
+  country          String   @default("India")
+  latitude         Float?
+  longitude        Float?
+  approxAreaLabel  String   // e.g. "Near MG Road" — safe to show publicly
+  createdAt        DateTime @default(now())
+
+  organizations OrganizationProfile[]
+  donations     Donation[]
+}
+
+model ServiceArea {
+  id        String   @id @default(cuid())
+  city      String
+  label     String   // e.g. "North Zone"
+  isActive  Boolean  @default(true)
+
+  organizations    OrganizationProfile[]
+  deliveryPartners DeliveryPartnerProfile[]
+}
+
+// ---------------------------------------------------------------------------
+// FOOD DONATIONS
+// ---------------------------------------------------------------------------
+
+model FoodCategory {
+  id    String @id @default(cuid())
+  name  String @unique // "Cooked Meals", "Bakery", "Packaged", "Fruits & Vegetables", ...
+
+  donations Donation[]
+}
+
+model Donation {
+  id               String   @id @default(cuid())
+  donorId          String
+  donor            DonorProfile @relation(fields: [donorId], references: [id])
+
+  foodName         String
+  categoryId       String?
+  category         FoodCategory? @relation(fields: [categoryId], references: [id])
+  description      String?
+  dietType         String   // "VEG" | "NON_VEG" | "VEGAN" | "OTHER"
+  servings         Int
+  approxQuantity   String?  // free text e.g. "approx 15 kg"
+
+  preparedAt       DateTime
+  collectionDeadline DateTime
+  storageCondition String   // "ROOM_TEMPERATURE" | "REFRIGERATED" | "FROZEN" | "HOT_HELD"
+  wasRefrigerated  Boolean  @default(false)
+  allergens        String?  // comma-separated free text, nullable = unknown
+  packagingInfo    String?
+
+  addressId        String
+  address          Address  @relation(fields: [addressId], references: [id])
+  pickupInstructions String?
+  contactPhone     String
+
+  isAnonymous      Boolean  @default(false)
+  isUrgent         Boolean  @default(false) // true when deadline is within the urgent window
+
+  foodSafetyAcknowledged Boolean @default(false) // donor must confirm before posting
+
+  status           String   @default("AVAILABLE")
+  // "AVAILABLE" | "REQUESTED" | "ASSIGNED" | "PICKED_UP" | "DELIVERED" | "EXPIRED" | "CANCELLED"
+
+  servingsRemaining Int     // decremented as requests are approved; supports splitting across orgs
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  images   DonationImage[]
+  requests DonationRequest[]
+  deliveries Delivery[]
+  reports  Report[]
+
+  @@index([status])
+  @@index([collectionDeadline])
+}
+
+model DonationImage {
+  id         String   @id @default(cuid())
+  donationId String
+  donation   Donation @relation(fields: [donationId], references: [id])
+  url        String
+  uploadedAt DateTime @default(now())
+}
+
+// An organization's request against a donation. A single donation can have
+// multiple requests (splitting), tracked individually.
+model DonationRequest {
+  id              String   @id @default(cuid())
+  donationId      String
+  donation        Donation @relation(fields: [donationId], references: [id])
+  organizationId  String
+  organization    OrganizationProfile @relation(fields: [organizationId], references: [id])
+  servingsRequested Int
+  status          String   @default("PENDING") // "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED"
+  createdAt       DateTime @default(now())
+  respondedAt     DateTime?
+
+  delivery Delivery?
+
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// DELIVERY
+// ---------------------------------------------------------------------------
+
+model Delivery {
+  id                    String   @id @default(cuid())
+  donationId            String
+  donation              Donation @relation(fields: [donationId], references: [id])
+  donationRequestId     String   @unique
+  donationRequest       DonationRequest @relation(fields: [donationRequestId], references: [id])
+  organizationId        String
+  organization          OrganizationProfile @relation("RecipientOrg", fields: [organizationId], references: [id])
+  deliveryPartnerId     String?
+  deliveryPartner       DeliveryPartnerProfile? @relation(fields: [deliveryPartnerId], references: [id])
+
+  status                String   @default("PENDING_ASSIGNMENT")
+  // "PENDING_ASSIGNMENT" | "ASSIGNED" | "EN_ROUTE_TO_PICKUP" | "PICKED_UP" |
+  // "EN_ROUTE_TO_DROPOFF" | "DELIVERED" | "CANCELLED"
+
+  pickupOtp             String   // generated at assignment, revealed to donor + partner only
+  dropoffOtp            String   // generated at assignment, revealed to org + partner only
+  pickupOtpVerifiedAt    DateTime?
+  dropoffOtpVerifiedAt   DateTime?
+
+  assignedAt            DateTime?
+  pickedUpAt             DateTime?
+  deliveredAt             DateTime?
+  cancelledAt            DateTime?
+  cancellationReason      String?
+
+  compensationCents       Int?     // amount owed to delivery partner, funded via sponsorship pool
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  statusHistory  DeliveryStatusHistory[]
+  ratings        Rating[]
+
+  @@index([status])
+}
+
+model DeliveryStatusHistory {
+  id          String   @id @default(cuid())
+  deliveryId  String
+  delivery    Delivery @relation(fields: [deliveryId], references: [id])
+  fromStatus  String?
+  toStatus    String
+  changedAt   DateTime @default(now())
+  note        String?
+}
+
+// ---------------------------------------------------------------------------
+// FEEDBACK, TRUST & SAFETY
+// ---------------------------------------------------------------------------
+
+model Rating {
+  id          String   @id @default(cuid())
+  deliveryId  String
+  delivery    Delivery @relation(fields: [deliveryId], references: [id])
+  givenByUserId String
+  givenBy       User   @relation("RatingsGiven", fields: [givenByUserId], references: [id])
+  targetRole    String // "DELIVERY_PARTNER" | "DONOR" | "ORGANIZATION"
+  stars         Int    // 1-5
+  comment       String?
+  createdAt     DateTime @default(now())
+}
+
+model Report {
+  id            String   @id @default(cuid())
+  reportedByUserId String
+  reportedBy       User  @relation("ReportedBy", fields: [reportedByUserId], references: [id])
+  donationId    String?
+  donation      Donation? @relation(fields: [donationId], references: [id])
+  category      String   // "FOOD_SAFETY" | "NO_SHOW" | "FRAUD" | "ABUSE" | "OTHER"
+  description   String
+  status        String   @default("OPEN") // "OPEN" | "IN_REVIEW" | "RESOLVED" | "DISMISSED"
+  createdAt     DateTime @default(now())
+  resolvedAt    DateTime?
+  resolutionNote String?
+}
+
+// ---------------------------------------------------------------------------
+// NOTIFICATIONS
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  channel    String   // "IN_APP" | "EMAIL" | "SMS" | "WHATSAPP"
+  title      String
+  body       String
+  isRead     Boolean  @default(false)
+  relatedType String? // "DONATION" | "REQUEST" | "DELIVERY" | "ORGANIZATION" | "SYSTEM"
+  relatedId   String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, isRead])
+}
+
+// ---------------------------------------------------------------------------
+// AUDIT
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorUserId String?
+  actor       User?   @relation(fields: [actorUserId], references: [id])
+  action      String   // e.g. "DONATION_CREATED", "ORG_VERIFIED", "DELIVERY_STATUS_CHANGED"
+  targetType  String?
+  targetId    String?
+  metadata    String?  // JSON string
+  createdAt   DateTime @default(now())
+
+  @@index([action])
+}
