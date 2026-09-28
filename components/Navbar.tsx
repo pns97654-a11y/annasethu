@@ -45,7 +45,7 @@ export default function Navbar() {
         </nav>
         <button
   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-  className="md:hidden text-2xl"
+  className="md:hidden text-2xl order-2"
   aria-label="Toggle menu"
 >
   ☰
@@ -73,7 +73,7 @@ export default function Navbar() {
   </Link>
 </div>
  )}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 order-1 md:order-none">
           {!loading && !me && (
             <>
               <Link href="/login" className="text-sm font-medium text-black/70 hover:text-leaf-700">Log in</Link>
@@ -84,7 +84,7 @@ export default function Navbar() {
             <>
               <Link
   href={DASHBOARD_BY_ROLE[me.role] ?? '/'}
-  className="text-sm font-medium text-black/70 hover:text-leaf-700"
+  className="hidden md:inline text-sm font-medium text-black/70 hover:text-leaf-700"
 >
   Dashboard
 </Link>
