@@ -52,6 +52,14 @@ export default function Navbar() {
 </button>
  {mobileMenuOpen && (
   <div className="md:hidden absolute top-16 right-4 bg-white border border-black/10 rounded-lg shadow-lg p-4 flex flex-col gap-4 z-50">
+  {!loading && me && (
+  <Link
+    href={DASHBOARD_BY_ROLE[me.role] ?? "/"}
+    onClick={() => setMobileMenuOpen(false)}
+  >
+    Dashboard
+  </Link>
+)}
   <Link href="/how-it-works" onClick={() => setMobileMenuOpen(false)}>
     How It Works
   </Link>
