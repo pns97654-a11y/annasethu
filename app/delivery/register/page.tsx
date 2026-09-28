@@ -58,7 +58,7 @@ export default function DeliveryRegisterPage() {
         </p>
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-0.5" checked={agreedToTerms} onChange={(e) => setAgreedToTerms(e.target.checked)} />
-          I agree to the Annasethu delivery partner terms and food-handling guidance.
+          I agree to the annadharaa delivery partner terms and food-handling guidance.
         </label>
         <button className="btn-primary w-full" disabled={loading}>{loading ? 'Submitting…' : 'Submit for verification'}</button>
       </form>

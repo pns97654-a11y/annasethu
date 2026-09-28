@@ -3,9 +3,9 @@ import './globals.css';
 import Navbar from '@/components/Navbar';
 
 export const metadata: Metadata = {
-  title: 'Annasethu — Good Food Shouldn\u2019t Become Waste',
+  title: annadharaa — Good Food Shouldn\u2019t Become Waste',
   description:
-    'Annasethu connects surplus food from parties, events, restaurants and hotels with verified organizations that can use it.'
+    'Annadharaa connects surplus food from parties, events, restaurants and hotels with verified organizations that can use it.'
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="flex-1">{children}</main>
         <footer className="border-t border-black/5 py-8 mt-16 text-sm text-black/50">
           <div className="max-w-6xl mx-auto px-4 flex flex-wrap gap-x-6 gap-y-2 justify-between">
-            <span>© {new Date().getFullYear()} Annasethu. Demo build — not for production food-safety reliance.</span>
+            <span>© {new Date().getFullYear()} Annadharaa. Demo build — not for production food-safety reliance.</span>
             <div className="flex gap-4">
               <a href="/food-safety" className="hover:underline">Food Safety</a>
               <a href="/terms" className="hover:underline">Terms</a>

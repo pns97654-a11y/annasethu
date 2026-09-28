@@ -33,7 +33,7 @@ export const PATCH = withErrorHandling(async (req, { params }: { params: { id: s
     title: decision === 'VERIFIED' ? 'You are verified ✓' : 'Verification update',
     body:
       decision === 'VERIFIED'
-        ? 'You can now accept delivery jobs on Annasethu.'
+        ? 'You can now accept delivery jobs on annadharaa.'
         : 'Your delivery partner verification was not approved. Contact support for details.',
     relatedType: 'SYSTEM'
   });

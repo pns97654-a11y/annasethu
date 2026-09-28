@@ -184,7 +184,7 @@ export default function NewDonationPage() {
           <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5" />
           <span>
             I confirm this food was prepared and stored safely and I have provided accurate
-            information above. I understand Annasethu does not guarantee food safety and that I am
+            information above. I understand annadharaa does not guarantee food safety and that I am
             responsible for following applicable local food-safety rules.
           </span>
         </label>

@@ -72,7 +72,7 @@ export default function HomePage() {
 
       <section className="max-w-6xl mx-auto px-4 py-16 text-center">
         <p className="text-black/60 max-w-2xl mx-auto">
-          Food safety matters. Annasethu requires donors to share preparation time, storage
+          Food safety matters. annadharaa requires donors to share preparation time, storage
           condition and a collection deadline for every donation, but the platform does not and
           cannot guarantee food safety — all parties are expected to follow applicable local
           food-safety rules. <Link href="/food-safety" className="text-leaf-700 underline">Read our food-safety guidance</Link>.

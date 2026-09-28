@@ -34,7 +34,7 @@ export default function Navbar() {
     <header className="border-b border-black/5 bg-white/80 backdrop-blur sticky top-0 z-20">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg text-leaf-700">
-          <span aria-hidden>🍲</span> Annasethu
+          <span aria-hidden>🍲</span> Annadharaa
         </Link>
         <nav className="hidden md:flex items-center gap-6 text-sm text-black/70">
           <Link href="/how-it-works" className="hover:text-leaf-700">How It Works</Link>
