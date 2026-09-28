@@ -3,7 +3,7 @@ import './globals.css';
 import Navbar from '@/components/Navbar';
 
 export const metadata: Metadata = {
-  title: annadharaa — Good Food Shouldn\u2019t Become Waste',
+ title: 'Annadharaa — Good Food Shouldn’t Become Waste',  
   description:
     'Annadharaa connects surplus food from parties, events, restaurants and hotels with verified organizations that can use it.'
 };
